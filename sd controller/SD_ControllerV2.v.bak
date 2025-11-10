@@ -1,0 +1,260 @@
+//=========================================================
+// SD Card Controller - Improved for real SD cards
+// - Verilog-2001, Quartus friendly
+// - Adds power-up clocks, CS idle gaps, SPI mode-0 timing,
+//   longer retries/timeouts, fixed CMD58 reading, skip CMD16 for SDHC.
+// - No data CRC calculation (per user's request).
+//=========================================================
+module SD_Controller (
+    input wire clk, // System clock (assumed 50 MHz)
+    input wire rst_n, // Active low reset
+
+    // SPI Interface to SD Card
+    output wire spi_cs_n, // Chip select (active low)
+    output wire spi_clk,  // SPI clock (~5 MHz)
+    output wire spi_mosi, // Master out, slave in
+    input wire spi_miso,  // Master in, slave out (needs external pull-up)
+
+    // External Interface
+    input wire start_init, // Pulse to start SD card initialization
+    input wire read_next_block, // Pulse to request next block read
+    input wire write_enable, // Level high to enable write with provided data
+    input wire [31:0] write_addr, // Write address (unused; writes to current block)
+    input wire [511:0] write_data, // Full block write data
+
+    output reg init_complete, // Initialization complete
+    output reg busy, // Controller busy
+    output reg error, // Error flag
+    output reg [511:0] read_data, // Current block data (output bus)
+    output reg data_valid, // Read data ready signal
+    output reg write_complete, // Write operation complete
+
+    // Status outputs
+    output reg [31:0] current_block_addr,
+    output reg [7:0] sd_card_type
+);
+
+    // Parameters
+    parameter BLOCK_SIZE = 512;
+    parameter CLK_DIV = 5; // For ~5 MHz SPI clock from 50 MHz system clock
+    parameter MAX_RETRIES = 1000; // Increased retries for hardware robustness
+    parameter POWERUP_CLK_CYCLES = 80; // ≥74 required by spec
+    parameter CS_IDLE_CYCLES = 8; // >=8 clocks between commands
+    parameter CMD41_TIMEOUT = 50000; // timeout cycles for ACMD41 loop
+
+    // Internal signals
+    reg [7:0] spi_tx_data;
+    wire [7:0] spi_rx_data;
+    reg spi_start;
+    wire spi_done;
+    reg [31:0] block_counter;
+    reg [9:0] byte_counter; // enough to count 512
+    reg [3:0] tx_count;
+    reg [3:0] rx_count; // for extended responses (e.g., CMD58)
+    reg [15:0] retry_count;
+    reg [7:0] cmd_buffer [0:5];
+    reg [7:0] response_buffer [0:8];
+
+    // SPI physical lines
+    reg spi_cs_n_reg;
+    reg spi_clk_reg;
+    wire spi_mosi_wire;
+    assign spi_cs_n = spi_cs_n_reg;
+    assign spi_clk = spi_clk_reg;
+    assign spi_mosi = spi_mosi_wire;
+
+    // SPI edge strobes (generated in clock generator)
+    wire spi_clk_rising;
+    wire spi_clk_falling;
+
+    // State machine states
+    localparam [4:0]
+        IDLE = 5'd0,
+        INIT_START = 5'd1,
+        INIT_POWERUP_CLOCKS = 5'd2,
+        INIT_CMD0 = 5'd3,
+        INIT_CMD8 = 5'd4,
+        INIT_CMD55 = 5'd5,
+        INIT_CMD41 = 5'd6,
+        INIT_CMD58 = 5'd7,
+        INIT_CMD16 = 5'd8,
+        INIT_COMPLETE = 5'd9,
+        READ_BLOCK_CMD = 5'd10,
+        READ_BLOCK_WAIT = 5'd11,
+        READ_BLOCK_DATA = 5'd12,
+        WRITE_BLOCK_CMD = 5'd13,
+        WRITE_BLOCK_DATA = 5'd14,
+        WRITE_BLOCK_WAIT = 5'd15,
+        ERROR_STATE = 5'd16,
+        CS_IDLE = 5'd17;
+    reg [4:0] current_state, next_state;
+
+    // SPI Clock Generator with rising/falling strobes
+    reg [3:0] clk_counter; // 0..CLK_DIV-1
+    reg spi_clk_rise_reg;
+    reg spi_clk_fall_reg;
+    assign spi_clk_rising = spi_clk_rise_reg;
+    assign spi_clk_falling = spi_clk_fall_reg;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            clk_counter <= 0;
+            spi_clk_reg <= 0;
+            spi_clk_rise_reg <= 0;
+            spi_clk_fall_reg <= 0;
+        end else begin
+            spi_clk_rise_reg <= 0;
+            spi_clk_fall_reg <= 0;
+            clk_counter <= clk_counter + 1;
+            if (clk_counter == (CLK_DIV - 1)) begin
+                clk_counter <= 0;
+                // toggle SCLK
+                spi_clk_reg <= ~spi_clk_reg;
+                // if new value is 1 -> rising edge, else falling edge
+                if (~spi_clk_reg) begin
+                    // new value will be 1 (rising)
+                    spi_clk_rise_reg <= 1;
+                end else begin
+                    // new value will be 0 (falling)
+                    spi_clk_fall_reg <= 1;
+                end
+            end
+        end
+    end
+
+    // SPI Transaction Handler (now uses rising/falling strobes for SPI mode 0 timing)
+    spi_transactor spi_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .spi_clk_rising(spi_clk_rising),
+        .spi_clk_falling(spi_clk_falling),
+        .start(spi_start),
+        .tx_data(spi_tx_data),
+        .rx_data(spi_rx_data),
+        .done(spi_done),
+        .spi_mosi(spi_mosi_wire),
+        .spi_miso(spi_miso)
+    );
+
+    // Power-up / CS idle counters & CMD41 timeout
+    reg [15:0] powerup_clk_counter;
+    reg [15:0] cs_idle_counter;
+    reg [31:0] cmd41_timer;
+
+    // Timeout guard for general commands (to avoid lock)
+    reg [31:0] general_timeout;
+
+    // Main State Machine (state register)
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            current_state <= IDLE;
+        else
+            current_state <= next_state;
+    end
+
+    // Next state logic (combinational)
+    always @(*) begin
+        next_state = current_state;
+
+        case (current_state)
+            IDLE: begin
+                if (start_init && !init_complete)
+                    next_state = INIT_START;
+                else if (read_next_block && init_complete && !busy)
+                    next_state = READ_BLOCK_CMD;
+                else if (write_enable && init_complete && !busy)
+                    next_state = WRITE_BLOCK_CMD;
+            end
+
+            INIT_START: next_state = INIT_POWERUP_CLOCKS;
+
+            INIT_POWERUP_CLOCKS: begin
+                if (powerup_clk_counter < POWERUP_CLK_CYCLES)
+                    next_state = INIT_POWERUP_CLOCKS;
+                else
+                    next_state = INIT_CMD0;
+            end
+
+            INIT_CMD0: begin
+                if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                    next_state = INIT_CMD0;
+                else if (tx_count == 7 && spi_done && spi_rx_data == 8'h01)
+                    next_state = CS_IDLE;
+                else
+                    next_state = ERROR_STATE;
+            end
+
+            CS_IDLE: begin
+                if (cs_idle_counter < CS_IDLE_CYCLES)
+                    next_state = CS_IDLE;
+                else begin
+                    // After CS idle, determine next real command state from a small internal marker:
+                    // Use response_buffer[0] as a small marker: 0 => go to CMD8 after CMD0, 1=> CMD55, 2=> CMD16, ...
+                    // To keep simple, flow control is done in sequential control logic; next_state set back to IDLE here.
+                    // We'll allow the sequential logic to choose the correct next_state by setting an internal cmd_next marker.
+                    next_state = INIT_CMD8; // default next step after CMD0
+                end
+            end
+
+            INIT_CMD8: begin
+                if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                    next_state = INIT_CMD8;
+                else if (tx_count == 7 && spi_done && (spi_rx_data == 8'h01 || spi_rx_data == 8'h05))
+                    next_state = CS_IDLE;
+                else
+                    next_state = ERROR_STATE;
+            end
+
+            INIT_CMD55: begin
+                if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                    next_state = INIT_CMD55;
+                else if (tx_count == 7 && spi_done && spi_rx_data == 8'h01)
+                    next_state = INIT_CMD41;
+                else
+                    next_state = ERROR_STATE;
+            end
+
+            INIT_CMD41: begin
+                if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                    next_state = INIT_CMD41;
+                else if (tx_count == 7 && spi_done) begin
+                    if (spi_rx_data == 8'h00)
+                        next_state = INIT_CMD58;
+                    else if (retry_count < MAX_RETRIES && cmd41_timer < CMD41_TIMEOUT)
+                        next_state = INIT_CMD55;
+                    else
+                        next_state = ERROR_STATE;
+                end else
+                    next_state = ERROR_STATE;
+            end
+
+            INIT_CMD58: begin
+                // We'll go through the TX and then read 4 OCR bytes (rx_count)
+                if (tx_count < 7 || (tx_count == 7 && !spi_done) || (tx_count == 7 && spi_done && rx_count < 4))
+                    next_state = INIT_CMD58;
+                else if (tx_count == 7 && spi_done && rx_count == 4)
+                    next_state = INIT_CMD16;
+                else
+                    next_state = ERROR_STATE;
+            end
+
+            INIT_CMD16: begin
+                // If SDHC skip CMD16
+                if (sd_card_type == 8'h02)
+                    next_state = INIT_COMPLETE;
+                else begin
+                    if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                        next_state = INIT_CMD16;
+                    else if (tx_count == 7 && spi_done && spi_rx_data == 8'h00)
+                        next_state = INIT_COMPLETE;
+                    else
+                        next_state = ERROR_STATE;
+                end
+            end
+
+            INIT_COMPLETE: next_state = IDLE;
+
+            READ_BLOCK_CMD: begin
+                if (tx_count < 7 || (tx_count == 7 && !spi_done))
+                    next_state = READ_BLOCK_CMD;
+                else if (tx_count == 7 && spi_done && spi_rx_data == 8'h00)

@@ -1,0 +1,89 @@
+//=========================================================
+// Simple Behavioral SD Card Mock for TB
+// - Fixed responses: CMD0=0x01, CMD8=R7(0x01 + 0x000001AA), ACMD41=0x00 after retries,
+//   CMD58=R3(0x00 + OCR w/CCS=1), CMD17=0xFE + 0x00*512, CMD24=0x00 + 0x05 + busy(100us).
+//=========================================================
+module sd_mock (
+    input wire spi_clk,
+    input wire spi_cs_n,
+    input wire spi_mosi,
+    output reg spi_miso
+);
+    reg [7:0] rx_shift;
+    reg [2:0] bit_cnt;
+    reg [7:0] cmd_rx [0:6];  // Cmd + CRC
+    reg [2:0] cmd_idx;
+    reg [3:0] state;  // 0=idle, 1=rcv_cmd, 2=resp_r1, 3=resp_r7, 4=data_fe, 5=busy
+    reg busy_cnt;
+
+    always @(negedge spi_clk) begin  // Sample on falling (slave view)
+        if (!spi_cs_n) begin
+            rx_shift <= {rx_shift[6:0], spi_mosi};
+            bit_cnt <= bit_cnt + 1;
+            if (bit_cnt == 7) begin
+                case (state)
+                    0: begin  // Rcv cmd
+                        cmd_rx[cmd_idx] <= rx_shift;
+                        if (cmd_idx == 6) begin  // Full cmd
+                            state <= 2;  // R1 resp
+                            cmd_idx <= 0;
+                            case (cmd_rx[0])
+                                8'h40: spi_miso <= 1'b1;  // CMD0 R1=0x01 (idle)
+                                8'h48: state <= 3;  // CMD8 → R7
+                                8'h77: spi_miso <= 1'b1;  // CMD55 R1=0x01
+                                8'h69: begin  // CMD41
+                                    if (busy_cnt > 5) spi_miso <= 1'b0;  // 0x00 after "retries"
+                                    else busy_cnt <= busy_cnt + 1;
+                                end
+                                8'h7A: state <= 3;  // CMD58 → R3
+                                8'h50: spi_miso <= 1'b0;  // CMD16 R1=0x00
+                                8'h51: state <= 4;  // CMD17 → data
+                                8'h58: spi_miso <= 1'b0;  // CMD24 → data resp
+                                default: spi_miso <= 1'b1;  // Idle/error
+                            endcase
+                        end else cmd_idx <= cmd_idx + 1;
+                        bit_cnt <= 0;
+                    end
+                    2: begin  // Send R1 (1 byte)
+                        // Already set above
+                        state <= 0;
+                        bit_cnt <= 0;
+                    end
+                    3: begin  // Send R7/R3 (5 bytes: R1 + 4 data)
+                        case (cmd_idx)
+                            0: spi_miso <= 1'b1;  // R1=0x01 for CMD8
+                            1: spi_miso <= 1'b0;  // OCR[31:24]=0x00
+                            2: spi_miso <= 1'b0;  // [23:16]=0x00
+                            3: spi_miso <= 1'b0;  // [15:8]=0x01
+                            4: begin
+                                spi_miso <= 1'b1;  // [7:0]=0xAA
+                                state <= cmd_rx[0] == 8'h7A ? 0 : 0;  // Back to idle
+                            end
+                        endcase
+                        cmd_idx <= cmd_idx + 1;
+                        bit_cnt <= 0;
+                    end
+                    4: begin  // Data token 0xFE + 512x00 (mock empty block)
+                        if (cmd_idx == 0) spi_miso <= 1'b0;  // 0xFE >>7 =1? Wait, shift logic simplified
+                        else if (cmd_idx < 513) spi_miso <= 1'b0;  // Data 0x00
+                        else begin
+                            spi_miso <= 1'b1;  // Dummy CRC
+                            state <= 0;
+                        end
+                        cmd_idx <= cmd_idx + 1;
+                        bit_cnt <= 0;
+                    end
+                    default: state <= 0;
+                endcase
+            end
+        end else begin
+            spi_miso <= 1;  // Idle high
+            state <= 0;
+            cmd_idx <= 0;
+            bit_cnt <= 0;
+        end
+    end
+
+    // Busy for write (mock 100 cycles)
+    always @(posedge spi_clk) if (state == 5) busy_cnt <= busy_cnt - 1;
+endmodule

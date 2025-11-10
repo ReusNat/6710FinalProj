@@ -1,0 +1,184 @@
+// ================================================================
+// Top-Level Module: SD Card XOR Encryptor/Decryptor Device
+// Verilog-2001 Compliant
+// ================================================================
+module sd_xor_device (
+    input wire clk,                    // System clock
+    input wire rst,                    // Active-high reset
+    input wire start,                  // Start operation (pulse)
+    input wire rw_flag,                // 1=encrypt (write), 0=decrypt (read)
+    output wire done,                  // Operation complete
+
+    // SD Card SPI Interface (external pins)
+    output wire sd_clk,
+    output wire sd_cs_n,
+    output wire sd_mosi,
+    input  wire sd_miso,
+
+    // Key Interface (external write to regfile)
+    input wire key_rw,                 // 1=write key, 0=read (external control)
+    input wire key_sel,                // 0=lower 512, 1=upper 512
+    input wire [511:0] key_data_in,    // Key input bus
+    output wire [511:0] key_data_out   // Key output (for verification)
+);
+
+    // =================================================================
+    // Internal Signals
+    // =================================================================
+    wire sd_ready;
+    wire sd_read_ready;
+    wire sd_write_data_ready;
+    wire [511:0] sd_data_in;
+    wire [511:0] sd_data_out;
+
+    reg xor_start;
+    wire xor_done;
+    wire [511:0] xor_sd_data_in;
+    wire xor_sd_data_valid;
+    wire xor_sd_ready;
+    wire [511:0] xor_sd_data_out;
+
+    // Register file control
+    wire reg_file_rw;
+    wire reg_file_sel;
+    wire [511:0] reg_file_data_out;
+
+    // SD Controller write trigger
+    reg sd_write_trigger;
+
+    // =================================================================
+    // Instantiate SD Controller (64-byte = 512-bit blocks)
+    // =================================================================
+    SD_Controller u_sd_controller (
+        .clk              (clk),
+        .rst_n            (~rst),
+        .write_data       (sd_data_out),
+        .write_data_ready (sd_write_data_ready),
+        .read_data        (sd_data_in),
+        .read_ready       (sd_read_ready),
+        .ready            (sd_ready),
+        .spi_clk          (sd_clk),
+        .spi_cs_n         (sd_cs_n),
+        .spi_mosi         (sd_mosi),
+        .spi_miso         (sd_miso)
+    );
+
+    // =================================================================
+    // Instantiate XOR Encryptor
+    // =================================================================
+    xorEncr #(
+        .DATA_WIDTH(512),
+        .KEY_WIDTH(512)
+    ) u_xor_encr (
+        .clk              (clk),
+        .rst              (rst),
+        .start            (xor_start),
+        .rw_flag          (rw_flag),
+        .done             (xor_done),
+        .sd_data_in       (xor_sd_data_in),
+        .sd_data_out      (xor_sd_data_out),
+        .sd_data_valid    (xor_sd_data_valid),
+        .sd_ready         (xor_sd_ready),
+        .reg_file_rw      (reg_file_rw),
+        .reg_file_sel     (reg_file_sel),
+        .reg_file_data_out(reg_file_data_out)
+    );
+
+    // =================================================================
+    // Instantiate 1024-bit Register File (Key Storage)
+    // =================================================================
+    regfile_1024bit u_regfile (
+        .clk        (clk),
+        .rw         (key_rw | reg_file_rw),        // External or internal access
+        .sel        (key_sel & ~reg_file_rw),      // External sel only if not internal
+        .data_in    (key_data_in),
+        .data_out   (key_data_out)
+    );
+
+    // Connect regfile output to XOR module
+    assign reg_file_data_out = u_regfile.data_out;
+
+    // =================================================================
+    // Top-Level Control FSM
+    // =================================================================
+    localparam T_IDLE        = 3'd0;
+    localparam T_WAIT_SD     = 3'd1;
+    localparam T_TRIGGER_XOR = 3'd2;
+    localparam T_WAIT_XOR    = 3'd3;
+    localparam T_TRIGGER_SD  = 3'd4;
+    localparam T_DONE        = 3'd5;
+
+    reg [2:0] top_state, top_next;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            top_state <= T_IDLE;
+        else
+            top_state <= top_next;
+    end
+
+    always @(*) begin
+        top_next = top_state;
+        xor_start = 1'b0;
+        sd_write_trigger = 1'b0;
+
+        case (top_state)
+            T_IDLE: begin
+                if (start && sd_ready) begin
+                    top_next = T_WAIT_SD;
+                end
+            end
+
+            T_WAIT_SD: begin
+                if (rw_flag) begin // Encrypt: wait for SD read data
+                    if (sd_read_ready)
+                        top_next = T_TRIGGER_XOR;
+                end else begin // Decrypt: trigger XOR first
+                    top_next = T_TRIGGER_XOR;
+                end
+            end
+
+            T_TRIGGER_XOR: begin
+                xor_start = 1'b1;
+                top_next = T_WAIT_XOR;
+            end
+
+            T_WAIT_XOR: begin
+                if (xor_done) begin
+                    if (rw_flag) // Encrypt: write encrypted data
+                        top_next = T_TRIGGER_SD;
+                    else         // Decrypt: data already in sd_data_out → trigger write
+                        top_next = T_TRIGGER_SD;
+                end
+            end
+
+            T_TRIGGER_SD: begin
+                sd_write_trigger = 1'b1;
+                if (sd_ready)
+                    top_next = T_DONE;
+            end
+
+            T_DONE: begin
+                top_next = T_IDLE;
+            end
+
+            default: top_next = T_IDLE;
+        endcase
+    end
+
+    // =================================================================
+    // Data Routing
+    // =================================================================
+    // SD → XOR input
+    assign xor_sd_data_in    = sd_data_in;
+    assign xor_sd_data_valid = (top_state == T_WAIT_SD) ? sd_read_ready : 1'b0;
+    assign xor_sd_ready      = sd_ready;
+
+    // XOR → SD output
+    assign sd_data_out       = xor_sd_data_out;
+    assign sd_write_data_ready = sd_write_trigger;
+
+    // Done signal
+    assign done = (top_state == Dawkins T_DONE);
+
+endmodule

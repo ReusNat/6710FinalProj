@@ -1,0 +1,52 @@
+// SPI Transactor (unchanged, mode 0)
+module spi_transactor (
+    input wire clk,
+    input wire rst_n,
+    input wire spi_clk_rising,
+    input wire spi_clk_falling,
+    input wire start,
+    input wire [7:0] tx_data,
+    output reg [7:0] rx_data,
+    output reg done,
+    output reg spi_mosi,
+    input wire spi_miso
+);
+    reg [2:0] bit_counter;
+    reg [7:0] tx_shift_reg;
+    reg [7:0] rx_shift_reg;
+    reg active;
+   
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            bit_counter <= 0;
+            tx_shift_reg <= 0;
+            rx_shift_reg <= 0;
+            done <= 0;
+            active <= 0;
+            spi_mosi <= 1;
+            rx_data <= 0;
+        end else begin
+            if (start && !active) begin
+                active <= 1;
+                tx_shift_reg <= tx_data;
+                bit_counter <= 0;
+                done <= 0;
+                rx_shift_reg <= 0;
+                spi_mosi <= tx_data[7]; // Setup on start (before falling)
+            end else if (active) begin
+                if (spi_clk_falling) begin // Shift out on falling
+                    tx_shift_reg <= {tx_shift_reg[6:0], 1'b1};
+                    rx_shift_reg <= {rx_shift_reg[6:0], spi_miso};
+                    bit_counter <= bit_counter + 1;
+                    spi_mosi <= tx_shift_reg[7]; // Next bit
+                end
+                if (spi_clk_rising && bit_counter == 7) begin // Latch on rising, check done
+                    active <= 0;
+                    done <= 1;
+                    rx_data <= {rx_shift_reg[6:0], spi_miso};
+                    spi_mosi <= 1;
+                end else done <= 0;
+            end else done <= 0;
+        end
+    end
+endmodule

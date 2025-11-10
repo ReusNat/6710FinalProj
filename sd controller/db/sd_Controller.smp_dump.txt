@@ -1,0 +1,56 @@
+
+State Machine - |SD_Controller|next_state
+Name next_state.S_WRITE_TOKEN next_state.S_READ_TOKEN next_state.S_READ_CMD next_state.S_CMD16 next_state.S_CMD58 next_state.S_ACMD41 next_state.S_CMD55 next_state.S_CMD59 next_state.S_CMD8 
+next_state.S_CMD8 0 0 0 0 0 0 0 0 0 
+next_state.S_CMD59 0 0 0 0 0 0 0 1 1 
+next_state.S_CMD55 0 0 0 0 0 0 1 0 1 
+next_state.S_ACMD41 0 0 0 0 0 1 0 0 1 
+next_state.S_CMD58 0 0 0 0 1 0 0 0 1 
+next_state.S_CMD16 0 0 0 1 0 0 0 0 1 
+next_state.S_READ_CMD 0 0 1 0 0 0 0 0 1 
+next_state.S_READ_TOKEN 0 1 0 0 0 0 0 0 1 
+next_state.S_WRITE_TOKEN 1 0 0 0 0 0 0 0 1 
+
+State Machine - |SD_Controller|current_cmd_state
+Name current_cmd_state.S_WRITE_CMD current_cmd_state.S_READ_CMD current_cmd_state.S_CMD16 current_cmd_state.S_CMD58 current_cmd_state.S_ACMD41 current_cmd_state.S_CMD55 current_cmd_state.S_CMD59 current_cmd_state.S_CMD8 current_cmd_state.S_CMD0 
+current_cmd_state.S_CMD0 0 0 0 0 0 0 0 0 0 
+current_cmd_state.S_CMD8 0 0 0 0 0 0 0 1 1 
+current_cmd_state.S_CMD59 0 0 0 0 0 0 1 0 1 
+current_cmd_state.S_CMD55 0 0 0 0 0 1 0 0 1 
+current_cmd_state.S_ACMD41 0 0 0 0 1 0 0 0 1 
+current_cmd_state.S_CMD58 0 0 0 1 0 0 0 0 1 
+current_cmd_state.S_CMD16 0 0 1 0 0 0 0 0 1 
+current_cmd_state.S_READ_CMD 0 1 0 0 0 0 0 0 1 
+current_cmd_state.S_WRITE_CMD 1 0 0 0 0 0 0 0 1 
+
+State Machine - |SD_Controller|state
+Name state.S_RESP_WAIT state.S_WRITE_BUSY state.S_WRITE_RESP state.S_WRITE_DATA state.S_WRITE_TOKEN state.S_WRITE_SEND state.S_WRITE_CMD state.S_WRITE_WAIT state.S_READ_DATA state.S_READ_TOKEN state.S_READ_SEND state.S_READ_CMD state.S_CMD16_SEND state.S_CMD16 state.S_CMD58_SEND state.S_CMD58 state.S_ACMD41_SEND state.S_ACMD41 state.S_CMD55_SEND state.S_CMD55 state.S_CMD59_SEND state.S_CMD59 state.S_CMD8_SEND state.S_CMD8 state.S_CMD0_SEND state.S_CMD0 state.S_POWERUP state.S_IDLE state.S_ERROR 
+state.S_IDLE 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+state.S_POWERUP 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 
+state.S_CMD0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 
+state.S_CMD0_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 
+state.S_CMD8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 
+state.S_CMD8_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 
+state.S_CMD59 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0 
+state.S_CMD59_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 
+state.S_CMD55 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 
+state.S_CMD55_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 
+state.S_ACMD41 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 
+state.S_ACMD41_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_CMD58 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_CMD58_SEND 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_CMD16 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_CMD16_SEND 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_READ_CMD 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_READ_SEND 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_READ_TOKEN 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_READ_DATA 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_WAIT 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_CMD 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_SEND 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_TOKEN 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_DATA 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_RESP 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_WRITE_BUSY 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_RESP_WAIT 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+state.S_ERROR 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 

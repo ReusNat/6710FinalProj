@@ -1,0 +1,19 @@
+transcript on
+if {[file exists gate_work]} {
+	vdel -lib gate_work -all
+}
+vlib gate_work
+vmap work gate_work
+
+vlog -vlog01compat -work work +incdir+. {sd_Controller.vo}
+
+vlog -vlog01compat -work work +incdir+C:/ECE\ 5710/sd\ controller {C:/ECE 5710/sd controller/sd_mock.v}
+vlog -vlog01compat -work work +incdir+C:/ECE\ 5710/sd\ controller {C:/ECE 5710/sd controller/sd_mock_tb.v}
+vlog -vlog01compat -work work +incdir+C:/ECE\ 5710/sd\ controller {C:/ECE 5710/sd controller/spi_transactor.v}
+
+vsim -t 1ps -L altera_ver -L altera_lnsim_ver -L cyclonev_ver -L lpm_ver -L sgate_ver -L cyclonev_hssi_ver -L altera_mf_ver -L cyclonev_pcie_hip_ver -L gate_work -L work -voptargs="+acc"  sd_mock_tb
+
+add wave *
+view structure
+view signals
+run -all

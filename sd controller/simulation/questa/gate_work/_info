@@ -1,0 +1,122 @@
+m255
+K4
+z2
+!s12c _opt
+Z0 !s99 nomlopt
+!s11f vlog 2023.3 2023.07, Jul 17 2023
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z1 dC:/ECE 5710/sd controller/simulation/questa
+T_opt
+!s110 1762754895
+VPl<NTYon?VF^o6U=JQXBh1
+04 10 4 work sd_mock_tb fast 0
+=1-0c9d92808af3-6911814f-1a7-6388
+R0
+!s12b OEM100
+!s124 OEM10U3 
+o-quiet -auto_acc_if_foreign -work work -L altera_ver -L altera_lnsim_ver -L cyclonev_ver -L lpm_ver -L sgate_ver -L cyclonev_hssi_ver -L altera_mf_ver -L cyclonev_pcie_hip_ver -L gate_work -L work +acc
+Z2 tCvgOpt 0
+n@_opt
+OL;O;2023.3;77
+vSD_Controller_Top
+2sd_Controller.vo
+!s110 1762754893
+!i10b 1
+!s100 iYZRKb`:HkiWbaR@J=fik1
+I4^IoMBQlgX86Qd?d@m9>Y0
+R1
+w1761106738
+8sd_Controller.vo
+Fsd_Controller.vo
+!i122 0
+L0 32 2733
+Z3 VDg1SIo80bB@j0V0VzS_@n1
+Z4 OL;L;2023.3;77
+r1
+!s85 0
+31
+!s108 1762754893.000000
+!s107 sd_Controller.vo|
+!s90 -reportprogress|300|-vlog01compat|-work|work|+incdir+.|sd_Controller.vo|
+!i113 0
+Z5 o-vlog01compat -work work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+!s92 -vlog01compat -work work +incdir+. -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R2
+n@s@d_@controller_@top
+vsd_mock
+2C:/ECE 5710/sd controller/sd_mock.v
+Z6 !s110 1762754894
+!i10b 1
+!s100 zb_>cSzCk3_1gzZI[OAi03
+IbS[X2Ih=XgSZe:APV;U]m2
+R1
+w1762754859
+8C:/ECE 5710/sd controller/sd_mock.v
+FC:/ECE 5710/sd controller/sd_mock.v
+!i122 1
+L0 4 315
+R3
+R4
+r1
+!s85 0
+31
+Z7 !s108 1762754894.000000
+!s107 C:/ECE 5710/sd controller/sd_mock.v|
+!s90 -reportprogress|300|-vlog01compat|-work|work|+incdir+C:/ECE 5710/sd controller|C:/ECE 5710/sd controller/sd_mock.v|
+!i113 0
+R5
+Z8 !s92 -vlog01compat -work work {+incdir+C:/ECE 5710/sd controller} -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R2
+vsd_mock_tb
+2C:/ECE 5710/sd controller/sd_mock_tb.v
+R6
+!i10b 1
+!s100 Cm^GFhF[C>90G;;O^PN^z3
+IN`7e8:;5Y0e4a5nF3C^D73
+R1
+w1762754839
+8C:/ECE 5710/sd controller/sd_mock_tb.v
+FC:/ECE 5710/sd controller/sd_mock_tb.v
+!i122 2
+L0 3 198
+R3
+R4
+r1
+!s85 0
+31
+R7
+!s107 C:/ECE 5710/sd controller/sd_mock_tb.v|
+!s90 -reportprogress|300|-vlog01compat|-work|work|+incdir+C:/ECE 5710/sd controller|C:/ECE 5710/sd controller/sd_mock_tb.v|
+!i113 0
+R5
+R8
+R2
+vspi_transactor
+2C:/ECE 5710/sd controller/spi_transactor.v
+R6
+!i10b 1
+!s100 @Q?5LK^3aam516Fh[Jhjc1
+IXK_MjF5zm1dD[<52gC[Y20
+R1
+w1762745557
+8C:/ECE 5710/sd controller/spi_transactor.v
+FC:/ECE 5710/sd controller/spi_transactor.v
+!i122 3
+L0 1 66
+R3
+R4
+r1
+!s85 0
+31
+R7
+!s107 C:/ECE 5710/sd controller/spi_transactor.v|
+!s90 -reportprogress|300|-vlog01compat|-work|work|+incdir+C:/ECE 5710/sd controller|C:/ECE 5710/sd controller/spi_transactor.v|
+!i113 0
+R5
+R8
+R2

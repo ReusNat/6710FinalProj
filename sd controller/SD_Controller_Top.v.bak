@@ -1,0 +1,40 @@
+// Top module (auto-init)
+module SD_Controller_Top (
+    input wire clk,
+    input wire rst_n,
+    output wire spi_cs_n,
+    output wire spi_clk,
+    output wire spi_mosi,
+    input wire spi_miso,
+    input wire read_next_block,
+    input wire write_enable,
+    input wire [31:0] write_addr,
+    input wire [511:0] write_data,
+    output wire init_complete,
+    output wire busy,
+    output wire error,
+    output wire [511:0] read_data,
+    output wire data_valid,
+    output wire write_complete,
+    output wire [31:0] current_block_addr,
+    output wire [7:0] sd_card_type
+);
+    reg start_init_reg;
+    wire start_init = start_init_reg || !init_complete;
+   
+    SD_Controller dut (
+        .clk(clk), .rst_n(rst_n),
+        .spi_cs_n(spi_cs_n), .spi_clk(spi_clk), .spi_mosi(spi_mosi), .spi_miso(spi_miso),
+        .start_init(start_init),
+        .read_next_block(read_next_block), .write_enable(write_enable),
+        .write_addr(write_addr), .write_data(write_data),
+        .init_complete(init_complete), .busy(busy), .error(error),
+        .read_data(read_data), .data_valid(data_valid), .write_complete(write_complete),
+        .current_block_addr(current_block_addr), .sd_card_type(sd_card_type)
+    );
+   
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) start_init_reg <= 0;
+        else start_init_reg <= !init_complete;
+    end
+endmodule
